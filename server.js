@@ -10,7 +10,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 const SIGNALS_FILE = path.join(__dirname, 'signals.json');
 const TWELVEDATA_API_KEY = process.env.TWELVEDATA_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+const MODEL = 'const MODEL = 'openrouter/free';
+
 
 const TIMEFRAMES = { '1D': '1day', '4H': '4h', '1H': '1h', '15': '15min' };
 
