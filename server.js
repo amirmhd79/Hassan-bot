@@ -8,11 +8,10 @@ const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 
 const SIGNALS_FILE = path.join(__dirname, 'signals.json');
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const TWELVEDATA_API_KEY = process.env.TWELVEDATA_API_KEY;
-const MODEL = 'claude-sonnet-5';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
 
-const SYMBOLS = (process.env.SYMBOLS || 'BTC/USD,EUR/USD,AAPL').split(',').map(s => s.trim());
 const TIMEFRAMES = { '1D': '1day', '4H': '4h', '1H': '1h', '15': '15min' };
 
 function readJSON(file, fallback) {
@@ -97,4 +96,96 @@ Entry Confirmation = 20 max
 Total = 100
 If total score is below 80, the decision MUST be NO_TRADE regardless of any other factor.
 
-Never guess. If the provided candle data is insufficient to determine a zone, structure, or liquidity event, say so explicitly in the reasoning, treat that
+Never guess. If the provided candle data is insufficient to determine a zone, structure, or liquidity event, say so explicitly in the reasoning, treat that criterion as failing, and lower the score accordingly.
+
+OUTPUT
+Respond with ONLY valid JSON, no markdown fences, no preamble, no text outside the JSON, matching exactly this schema:
+{
+  "symbol": string,
+  "generated_at": ISO8601 string,
+  "daily_bias": string, "h4_bias": string, "h1_bias": string, "m15_bias": string,
+  "trend": string,
+  "market_structure": string,
+  "current_supply_zone": string,
+  "current_demand_zone": string,
+  "fresh_zone": string,
+  "original_zone": string,
+  "liquidity_status": string,
+  "bos": string,
+  "choch": string,
+  "zone_quality": {
+    "momentum": string, "departure": string, "base_quality": string,
+    "number_of_base_candles": string, "distance_to_opposing_zone": string,
+    "profit_margin": string, "freshness": string, "reaction_probability": string
+  },
+  "trade_filters_triggered": string[],
+  "entry": number | null,
+  "stop_loss": number | null,
+  "take_profit_1": number | null,
+  "take_profit_2": number | null,
+  "take_profit_3": number | null,
+  "risk_reward": number | null,
+  "confidence_pct": number,
+  "score_breakdown": {
+    "trend_alignment": number, "market_structure": number,
+    "supply_demand_quality": number, "liquidity": number, "entry_confirmation": number
+  },
+  "trade_score": number,
+  "decision": "BUY" | "SELL" | "NO_TRADE",
+  "reasoning": string
+}
+Explain every decision based only on Price Action and Supply & Demand. Never guess. If information is insufficient, clearly state that no valid setup exists and return NO_TRADE.`;
+
+async function analyzeWithAI(symbol, candleData) {
+  const userMessage = `Symbol: ${symbol}\nCandle data (JSON, per timeframe, most recent last):\n${JSON.stringify(candleData)}`;
+  const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'HTTP-Referer': 'https://sd-bot.local',
+      'X-Title': 'SD Analysis Bot'
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userMessage }
+      ]
+    })
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error('OpenRouter API error: ' + JSON.stringify(data));
+  const text = data.choices[0].message.content;
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+async function runAnalysis(symbol) {
+  const candleData = {};
+  for (const [label, interval] of Object.entries(TIMEFRAMES)) {
+    candleData[label] = await fetchCandles(symbol, interval);
+  }
+  const result = await analyzeWithAI(symbol, candleData);
+  const signals = readJSON(SIGNALS_FILE, {});
+  signals[symbol] = result;
+  writeJSON(SIGNALS_FILE, signals);
+  return result;
+}
+
+app.get('/api/analyze/:symbol', async (req, res) => {
+  try {
+    const result = await runAnalysis(decodeURIComponent(req.params.symbol));
+    res.json({ status: 'ok', result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/signals', (req, res) => {
+  res.json(readJSON(SIGNALS_FILE, {}));
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
