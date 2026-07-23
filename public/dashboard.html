@@ -80,4 +80,15 @@ async function runAnalysis() {
     if (data.error) {
       statusEl.textContent = 'خطا: ' + data.error;
     } else {
-      statusEl.textContent = 'تحلیل انجام
+      statusEl.textContent = 'تحلیل انجام شد.';
+      load();
+    }
+  } catch (e) {
+    statusEl.textContent = 'خطا در ارتباط با سرور.';
+  }
+}
+
+load();
+</script>
+</body>
+</html>
