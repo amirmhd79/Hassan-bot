@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>ژورنال تحلیل‌ها</title>
+<style>
+  body { font-family: Tahoma, Arial, sans-serif; background:#0f1115; color:#e6e6e6; margin:0; padding:24px; }
+  h1 { font-size:20px; color:#9fd; }
+  a { color: #9fd; }
+  .stats { display:flex; gap:12px; flex-wrap: wrap; margin-bottom:20px; }
+  .stat-box { background:#1a1d24; border:1px solid #2a2e37; border-radius:10px; padding:14px 18px; text-align:center; min-width: 90px; }
+  .stat-box .num { font-size:22px; font-weight:bold; }
+  .stat-box .label { font-size:12px; color:#9aa0aa; }
+  table { width:100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 6px; text-align: right; border-bottom: 1px solid #2a2e37; }
+  th { color: #9aa0aa; font-weight: normal; }
+  .buy { color:#4ade80; font-weight:bold; }
+  .sell { color:#f87171; font-weight:bold; }
+  .notrade { color:#facc15; }
+  .empty { color:#888; text-align:center; padding:40px; }
+</style>
+</head>
+<body>
+<h1>📓 ژورنال تحلیل‌ها</h1>
+<p><a href="/dashboard.html">← برگشت به داشبورد</a></p>
+<div id="stats" class="stats"></div>
+<div id="table"></div>
+
+<script>
+async function load() {
+  const res = await fetch('/api/journal');
+  const journal = await res.json();
+  const statsEl = document.getElementById('stats');
+  const tableEl = document.getElementById('table');
+
+  if (journal.length === 0) {
+    statsEl.innerHTML = '';
+    tableEl.innerHTML = '<div class="empty">هنوز هیچ تحلیلی ثبت نشده.</div>';
+    return;
+  }
+
+  const buyCount = journal.filter(function (j) { return j.decision === 'BUY'; }).length;
+  const sellCount = journal.filter(function (j) { return j.decision === 'SELL'; }).length;
+  const noTradeCount = journal.filter(function (j) { return j.decision === 'NO_TRADE'; }).length;
+  const avgScore = (journal.reduce(function (sum, j) { return sum + (j.trade_score || 0); }, 0) / journal.length).toFixed(1);
+
+  statsEl.innerHTML =
+    '<div class="stat-box"><div class="num">' + journal.length + '</div><div class="label">کل تحلیل‌ها</div></div>' +
+    '<div class="stat-box"><div class="num buy">' + buyCount + '</div><div class="label">BUY</div></div>' +
+    '<div class="stat-box"><div class="num sell">' + sellCount + '</div><div class="label">SELL</div></div>' +
+    '<div class="stat-box"><div class="num notrade">' + noTradeCount + '</div><div class="label">NO TRADE</div></div>' +
+    '<div class="stat-box"><div class="num">' + avgScore + '</div><div class="label">میانگین Score</div></div>';
+
+  const rows = journal.slice().reverse().map(function (j) {
+    const decisionClass = j.decision === 'BUY' ? 'buy' : j.decision === 'SELL' ? 'sell' : 'notrade';
+    const time = new Date(j.logged_at).toLocaleString('fa-IR');
+    return '<tr>' +
+      '<td>' + time + '</td>' +
+      '<td>' + j.symbol + '</td>' +
+      '<td class="' + decisionClass + '">' + j.decision + '</td>' +
+      '<td>' + j.trade_score + '</td>' +
+      '<td>' + (j.entry ?? '-') + '</td>' +
+      '<td>' + (j.stop_loss ?? '-') + '</td>' +
+      '<td>' + (j.risk_reward ?? '-') + '</td>' +
+      '</tr>';
+  }).join('');
+
+  tableEl.innerHTML =
+    '<table><thead><tr>' +
+    '<th>زمان</th><th>نماد</th><th>تصمیم</th><th>Score</th><th>Entry</th><th>SL</th><th>RR</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+load();
+</script>
+</body>
+</html>
+
