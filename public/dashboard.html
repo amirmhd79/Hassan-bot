@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>داشبورد سیگنال S&D</title>
+<style>
+  body { font-family: Tahoma, Arial, sans-serif; background:#0f1115; color:#e6e6e6; margin:0; padding:24px; }
+  h1 { font-size:20px; color:#9fd; }
+  .card { background:#1a1d24; border:1px solid #2a2e37; border-radius:12px; padding:20px; margin-bottom:16px; }
+  .row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #22252c; font-size:14px; gap: 12px; }
+  .row span:first-child { color:#9aa0aa; white-space: nowrap; }
+  .row span:last-child { text-align: left; }
+  .buy { color:#4ade80; font-weight:bold; }
+  .sell { color:#f87171; font-weight:bold; }
+  .notrade { color:#facc15; font-weight:bold; }
+  .score { font-size:28px; font-weight:bold; }
+  .updated { color:#666; font-size:12px; margin-top:8px; }
+  .empty { color:#888; text-align:center; padding:40px; }
+  input, button { padding: 10px; border-radius: 8px; border: 1px solid #333; background: #1a1d24; color: #eee; font-size: 14px; }
+  button { background: #4ade80; color: #000; border: none; font-weight: bold; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>📊 سیگنال‌های Supply &amp; Demand</h1>
+<p><a href="/journal.html" style="color:#9fd;">📓 مشاهده ژورنال تاریخچه تحلیل‌ها</a></p>
+<div style="margin-bottom:20px; display:flex; gap:8px;">
+  <input id="symbolInput" placeholder="مثلا AAPL یا BTC/USD" style="flex:1;">
+  <button onclick="runAnalysis()">تحلیل کن</button>
+</div>
+<div id="status" style="margin-bottom:12px; color:#facc15;"></div>
+<div id="signals" class="empty">هنوز سیگنالی نیست. یک نماد وارد کن و دکمه تحلیل را بزن.</div>
+
+<script>
+async function load() {
+  try {
+    const res = await fetch('/api/signals');
+    const data = await res.json();
+    const container = document.getElementById('signals');
+    const symbols = Object.keys(data);
+    if (symbols.length === 0) {
+      container.className = 'empty';
+      container.innerHTML = 'هنوز سیگنالی نیست.';
+      return;
+    }
+    container.className = '';
+    container.innerHTML = symbols.map(function (sym) {
+      const s = data[sym];
+      const decisionClass = s.decision === 'BUY' ? 'buy' : s.decision === 'SELL' ? 'sell' : 'notrade';
+      return '<div class="card">' +
+        '<div class="row"><span>نماد</span><span><b>' + s.symbol + '</b></span></div>' +
+        '<div class="row"><span>تصمیم</span><span class="' + decisionClass + '">' + s.decision + '</span></div>' +
+        '<div class="row"><span>Score</span><span class="score">' + s.trade_score + '/100</span></div>' +
+        '<div class="row"><span>Confidence</span><span>' + s.confidence_pct + '%</span></div>' +
+        '<div class="row"><span>Trend</span><span>' + s.trend + '</span></div>' +
+        '<div class="row"><span>Market Structure</span><span>' + s.market_structure + '</span></div>' +
+        '<div class="row"><span>Entry</span><span>' + (s.entry ?? '-') + '</span></div>' +
+        '<div class="row"><span>Stop Loss</span><span>' + (s.stop_loss ?? '-') + '</span></div>' +
+        '<div class="row"><span>TP1/TP2/TP3</span><span>' + (s.take_profit_1 ?? '-') + ' / ' + (s.take_profit_2 ?? '-') + ' / ' + (s.take_profit_3 ?? '-') + '</span></div>' +
+        '<div class="row"><span>RR</span><span>' + (s.risk_reward ?? '-') + '</span></div>' +
+        '<div class="row"><span>توضیح</span><span style="max-width:60%">' + s.reasoning + '</span></div>' +
+        '<div class="updated">' + new Date(s.generated_at).toLocaleString('fa-IR') + '</div>' +
+        '</div>';
+    }).join('');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function runAnalysis() {
+  const symbol = document.getElementById('symbolInput').value.trim();
+  const statusEl = document.getElementById('status');
+  if (!symbol) {
+    statusEl.textContent = 'لطفا یک نماد وارد کن.';
+    return;
+  }
+  statusEl.textContent = 'در حال تحلیل ' + symbol + ' ... (ممکن است تا 30 ثانیه طول بکشد)';
+  try {
+    const res = await fetch('/api/analyze/' + encodeURIComponent(symbol));
+    const data = await res.json();
+    if (data.error) {
+      statusEl.textContent = 'خطا: ' + data.error;
+    } else {
+      statusEl.textContent = 'تحلیل انجام
