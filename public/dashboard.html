@@ -23,14 +23,50 @@
 <body>
 <h1>📊 سیگنال‌های Supply &amp; Demand</h1>
 <p><a href="/journal.html" style="color:#9fd;">📓 مشاهده ژورنال تاریخچه تحلیل‌ها</a></p>
+<div style="margin-bottom:16px;">
+  <div style="color:#9aa0aa; font-size:13px; margin-bottom:8px;">ارزهای دیجیتال پرطرفدار (کلیک کن تا تحلیل شود):</div>
+  <div id="cryptoButtons" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;"></div>
+  <button onclick="analyzeAll()" style="background:#facc15;">⚡ تحلیل همه (پشت‌سرهم)</button>
+</div>
 <div style="margin-bottom:20px; display:flex; gap:8px;">
-  <input id="symbolInput" placeholder="مثلا AAPL یا BTC/USD" style="flex:1;">
+  <input id="symbolInput" placeholder="یا نماد دلخواه: مثلا AAPL یا EUR/USD" style="flex:1;">
   <button onclick="runAnalysis()">تحلیل کن</button>
 </div>
 <div id="status" style="margin-bottom:12px; color:#facc15;"></div>
 <div id="signals" class="empty">هنوز سیگنالی نیست. یک نماد وارد کن و دکمه تحلیل را بزن.</div>
 
 <script>
+var CRYPTO_LIST = [
+  { fa: 'بیت‌کوین', code: 'BTC/USD' },
+  { fa: 'اتریوم', code: 'ETH/USD' },
+  { fa: 'تتر', code: 'USDT/USD' },
+  { fa: 'بی‌ان‌بی', code: 'BNB/USD' },
+  { fa: 'سولانا', code: 'SOL/USD' },
+  { fa: 'ریپل', code: 'XRP/USD' },
+  { fa: 'کاردانو', code: 'ADA/USD' },
+  { fa: 'دوج‌کوین', code: 'DOGE/USD' },
+  { fa: 'ترون', code: 'TRX/USD' },
+  { fa: 'پالیگان', code: 'MATIC/USD' },
+  { fa: 'پولکادات', code: 'DOT/USD' },
+  { fa: 'لایت‌کوین', code: 'LTC/USD' },
+  { fa: 'شیبا اینو', code: 'SHIB/USD' },
+  { fa: 'آوالانچ', code: 'AVAX/USD' },
+  { fa: 'چین‌لینک', code: 'LINK/USD' },
+  { fa: 'یونی‌سواپ', code: 'UNI/USD' },
+  { fa: 'استلار', code: 'XLM/USD' },
+  { fa: 'مونرو', code: 'XMR/USD' },
+  { fa: 'کازماس', code: 'ATOM/USD' },
+  { fa: 'ایتوس کلاسیک', code: 'ETC/USD' }
+];
+
+function renderCryptoButtons() {
+  var container = document.getElementById('cryptoButtons');
+  container.innerHTML = CRYPTO_LIST.map(function (c) {
+    return '<button onclick="runAnalysis(\'' + c.code + '\')" style="background:#2a2e37; color:#e6e6e6; font-weight:normal;">' + c.fa + '</button>';
+  }).join('');
+}
+renderCryptoButtons();
+
 async function load() {
   try {
     const res = await fetch('/api/signals');
@@ -41,13 +77,15 @@ async function load() {
       container.className = 'empty';
       container.innerHTML = 'هنوز سیگنالی نیست.';
       return;
-    }
+          }
     container.className = '';
     container.innerHTML = symbols.map(function (sym) {
       const s = data[sym];
       const decisionClass = s.decision === 'BUY' ? 'buy' : s.decision === 'SELL' ? 'sell' : 'notrade';
+      const faMatch = CRYPTO_LIST.find(function (c) { return c.code === sym; });
+      const displayName = faMatch ? (faMatch.fa + ' (' + sym + ')') : sym;
       return '<div class="card">' +
-        '<div class="row"><span>نماد</span><span><b>' + s.symbol + '</b></span></div>' +
+        '<div class="row"><span>نماد</span><span><b>' + displayName + '</b></span></div>' +
         '<div class="row"><span>تصمیم</span><span class="' + decisionClass + '">' + s.decision + '</span></div>' +
         '<div class="row"><span>Score</span><span class="score">' + s.trade_score + '/100</span></div>' +
         '<div class="row"><span>Confidence</span><span>' + s.confidence_pct + '%</span></div>' +
@@ -57,7 +95,8 @@ async function load() {
         '<div class="row"><span>Stop Loss</span><span>' + (s.stop_loss ?? '-') + '</span></div>' +
         '<div class="row"><span>TP1/TP2/TP3</span><span>' + (s.take_profit_1 ?? '-') + ' / ' + (s.take_profit_2 ?? '-') + ' / ' + (s.take_profit_3 ?? '-') + '</span></div>' +
         '<div class="row"><span>RR</span><span>' + (s.risk_reward ?? '-') + '</span></div>' +
-        '<div class="row"><span>توضیح</span><span style="max-width:60%">' + s.reasoning + '</span></div>' +
+        '<div class="row"><span>توضیح (فارسی)</span><span style="max-width:60%">' + (s.reasoning_fa || '-') + '</span></div>' +
+        '<div class="row"><span>Reasoning (EN)</span><span style="max-width:60%">' + s.reasoning + '</span></div>' +
         '<div class="updated">' + new Date(s.generated_at).toLocaleString('fa-IR') + '</div>' +
         '</div>';
     }).join('');
@@ -66,8 +105,8 @@ async function load() {
   }
 }
 
-async function runAnalysis() {
-  const symbol = document.getElementById('symbolInput').value.trim();
+async function runAnalysis(presetSymbol) {
+  const symbol = presetSymbol || document.getElementById('symbolInput').value.trim();
   const statusEl = document.getElementById('status');
   if (!symbol) {
     statusEl.textContent = 'لطفا یک نماد وارد کن.';
@@ -78,9 +117,9 @@ async function runAnalysis() {
     const res = await fetch('/api/analyze/' + encodeURIComponent(symbol));
     const data = await res.json();
     if (data.error) {
-      statusEl.textContent = 'خطا: ' + data.error;
+      statusEl.textContent = 'خطا (' + symbol + '): ' + data.error;
     } else {
-      statusEl.textContent = 'تحلیل انجام شد.';
+      statusEl.textContent = 'تحلیل ' + symbol + ' انجام شد.';
       load();
     }
   } catch (e) {
@@ -88,7 +127,31 @@ async function runAnalysis() {
   }
 }
 
+async function analyzeAll() {
+  const statusEl = document.getElementById('status');
+  for (let i = 0; i < CRYPTO_LIST.length; i++) {
+    const c = CRYPTO_LIST[i];
+    statusEl.textContent = '(' + (i + 1) + '/' + CRYPTO_LIST.length + ') در حال تحلیل ' + c.fa + ' ...';
+    try {
+      const res = await fetch('/api/analyze/' + encodeURIComponent(c.code));
+      const data = await res.json();
+      if (data.error) {
+        console.error(c.code, data.error);
+      } else {
+        load();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    // فاصله بین درخواست‌ها برای رعایت محدودیت رایگان سرویس‌ها
+    await new Promise(function (resolve) { setTimeout(resolve, 8000); });
+  }
+  statusEl.textContent = 'تحلیل همه‌ی ارزها تمام شد.';
+}
+
 load();
 </script>
 </body>
 </html>
+
+    }
