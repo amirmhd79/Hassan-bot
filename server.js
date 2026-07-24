@@ -114,8 +114,10 @@ const SYSTEM_PROMPT = [
   '  "score_breakdown": {"trend_alignment": number, "market_structure": number, "supply_demand_quality": number, "liquidity": number, "entry_confirmation": number},',
   '  "trade_score": number,',
   '  "decision": "BUY" or "SELL" or "NO_TRADE",',
-  '  "reasoning": string',
+  '  "reasoning": string,',
+  '  "reasoning_fa": string',
   '}',
+  'The "reasoning_fa" field must be a Persian (Farsi) translation of the same reasoning, written in clear natural Farsi for a Farsi-speaking trader. Keep technical terms like BOS, CHoCH, Supply/Demand as-is (transliterated or kept in English within the Farsi sentence, whichever reads more naturally), but the explanation itself must be in Farsi.',
   'Use null for entry/stop_loss/take_profit/risk_reward if decision is NO_TRADE and no valid levels exist.'
 ].join('\n');
 
@@ -187,7 +189,8 @@ async function runAnalysis(symbol) {
     take_profit_2: result.take_profit_2,
     take_profit_3: result.take_profit_3,
     risk_reward: result.risk_reward,
-    reasoning: result.reasoning
+    reasoning: result.reasoning,
+    reasoning_fa: result.reasoning_fa
   });
   writeJSON(JOURNAL_FILE, journal);
 
